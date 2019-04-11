@@ -1,0 +1,25 @@
+---
+- hosts: aws
+  become: true
+
+  tasks:
+    - name: Download
+      get_url:
+        url: http://proceedwell.com/cis_rhel7_v3.0.54.tgz
+        dest: /opt/cis.tgz
+        mode: 0777
+
+    - name: unzip
+      command: tar -avxf /opt/cis.tgz
+    - name: unzip2
+      command: mv /home/ec2-user/cis /opt/cis
+    - name: remove old report
+      shell: "rm -f /opt/cis/reports/*.html"
+    - name: scan
+      command: /opt/cis/cis-cat-full/misc/Unix-Linux/cis-cat-centralized.sh
+    - name: copy
+      shell: "mv /opt/cis/reports/ip*.html /opt/result.html"
+    - name: get report
+      fetch:
+        src: /opt/result.html
+        dest: ./result.html

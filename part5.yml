@@ -1,0 +1,131 @@
+---
+- hosts: aws
+  become: true
+  tasks:
+    - name: t5.2.2
+      lineinfile:
+        path: /etc/login.defs
+        line: "{{ item }}"
+      loop:
+        - PASS_MIN_DAYS 7
+        - PASS_MAX_DAYS 90
+    - name: t5.2.2
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^X11Forwarding="
+        line: "X11Forwarding no"
+
+    - name: t5.2.3
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        line: "{{ item }}"
+      loop:
+        - Protocol 2
+        - X11Forwarding no
+        - LogLevel INFO
+        - MaxAuthTries 4
+        - IgnoreRhosts yes
+        - HostbasedAuthentication no
+        - PermitRootLogin no
+        - PermitEmptyPasswords no
+        - PermitUserEnvironment no
+        #- MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com
+        - ClientAliveInterval 300
+        - ClientAliveCountMax 0
+        - LoginGraceTime 60
+        - Banner /etc/issue.net
+
+    - name: t5.2.3
+      lineinfile:
+        path: "{{ item }}"
+        line: password requisite pam_pwquality.so try_first_pass retry=3
+      loop:
+        - /etc/pam.d/password-auth
+        - /etc/pam.d/system-auth
+
+    - name: t5
+      blockinfile:
+        path: /etc/security/pwquality.conf
+        block: |
+          minlen = 14
+          dcredit = -1
+          ucredit = -1
+          ocredit = -1
+          lcredit = -1
+
+    - name: t5
+      blockinfile:
+        path: "{{ item }}"
+        block: |
+          auth required pam_faillock.so preauth audit silent deny=5 unlock_time=900
+          auth [success=1 default=bad] pam_unix.so
+          auth [default=die] pam_faillock.so authfail audit deny=5 unlock_time=900
+          auth sufficient pam_faillock.so authsucc audit deny=5 unlock_time=900
+      loop:
+        - /etc/pam.d/password-auth
+        - /etc/pam.d/system-auth
+
+    - name: part 5 commands
+      shell: "{{ item }}"
+      loop:
+        - chown root:root /etc/crontab
+        - chmod og-rwx /etc/crontab
+        - chown root:root /etc/cron.hourly
+        - chmod og-rwx /etc/cron.hourly
+        - chown root:root /etc/cron.daily
+        - chmod og-rwx /etc/cron.daily
+        - chown root:root /etc/cron.weekly
+        - chmod og-rwx /etc/cron.weekly
+        - chown root:root /etc/cron.monthly
+        - chmod og-rwx /etc/cron.monthly
+        - chown root:root /etc/cron.d
+        - chmod og-rwx /etc/cron.d
+        - rm -f /etc/cron.deny
+        - rm -f /etc/at.deny
+        - touch /etc/cron.allow
+        - touch /etc/at.allow
+        - chmod og-rwx /etc/cron.allow
+        - chmod og-rwx /etc/at.allow
+        - chown root:root /etc/cron.allow
+        - chown root:root /etc/at.allow
+        - useradd -D -f 30
+
+    - name: t5
+      lineinfile:
+        path: "{{  item }}"
+        regexp: "^password sufficient pam_unix.so remember="
+        line: "password sufficient pam_unix.so remember=5"
+      loop:
+        - /etc/pam.d/password-auth
+        - /etc/pam.d/system-auth
+
+    - name: t5
+      lineinfile:
+        path: "{{ item }}"
+        line: "umask 027"
+      loop:
+        - /etc/bashrc
+        - /etc/profile
+        - /etc/profile.d/256term.sh
+        - /etc/profile.d/colorgrep.sh
+        - /etc/profile.d/colorls.sh
+        - /etc/profile.d/lang.sh
+        - /etc/profile.d/less.sh
+        - /etc/profile.d/which2.sh
+    - name: t5
+      lineinfile:
+        path: "{{ item }}"
+        line: "TMOUT=600"
+      loop:
+        - /etc/bashrc
+        - /etc/profile
+
+    - name: t5
+      lineinfile:
+        path: /etc/pam.d/su
+        line: "auth required pam_wheel.so use_uid"
+
+    - name: t5
+      lineinfile:
+        path: /etc/group
+        line: "wheel:x:10:root"

@@ -1,0 +1,84 @@
+---
+- hosts: aws
+  become: true
+
+  tasks:
+    - name: create CIS
+      file:
+        path: "/etc/modprobe.d/CIS.conf"
+        state: touch
+
+    - name: add lines in CIS
+      lineinfile:
+        path: /etc/modprobe.d/CIS.conf
+        regexp: "^install {{ item }}"
+        line: "install {{ item }} /bin/true"
+      loop:
+        - cramfs
+        - freevxfs
+        - jffs2
+        - hfs
+        - hfsplus
+        - squashfs
+        - udf
+        - vfat
+    - name: remove modules
+      modprobe:
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - cramfs
+        - freevxfs
+        - jffs2
+        - hfs
+        - hfsplus
+        - squashfs
+        - udf
+        - vfat
+
+    - name: t1.3.1
+      yum:
+        name: "aide"
+    - name: add lines
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "* hard core 0"
+    - name: add lines
+      lineinfile:
+        path: /etc/sysctl.conf
+        line: "{{ item }}"
+      loop:
+        - kernel.randomize_va_space = 2
+        - fs.suid_dumpable = 0
+    - name: part 1 commands
+      shell: "{{ item }}"
+      loop:
+        - systemctl unmask tmp.mount
+        - systemctl enable tmp.mount
+        - mount -o remount,noexec /dev/shm
+        - aide --init
+        - mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
+        - chown root:root /boot/grub2/grub.cfg
+        - chmod og-rwx /boot/grub2/grub.cfg
+        - touch /boot/grub2/user.cfg
+        - chown root:root /boot/grub2/user.cfg
+        - chmod og-rwx /boot/grub2/user.cfg
+        - sysctl -w fs.suid_dumpable=0
+        - yum update --security -y
+        - sysctl -w kernel.randomize_va_space=2
+
+    - name: t1.1.2
+      blockinfile:
+        path: /etc/systemd/system/local-fs.target.wants/tmp.mount
+        block: |
+          [Mount]
+          What=tmpfs
+          Where=/tmp
+          Type=tmpfs
+          Options=mode=1777,strictatime,noexec,nodev,nosuid
+        # -/var
+        # -/var/tmp
+        # -/var/log
+        # -/var/log/audit
+        # - /home
+        # -1.3.2

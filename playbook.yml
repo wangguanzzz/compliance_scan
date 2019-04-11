@@ -1,0 +1,208 @@
+---
+- hosts: aws
+  become: true
+
+  tasks:
+    - name: install yums
+      yum:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - tcp_wrappers
+
+    - name: create CIS
+      file:
+        path: "/etc/modprobe.d/CIS.conf"
+        state: touch
+
+    - name: add lines in CIS
+      lineinfile:
+        path: /etc/modprobe.d/CIS.conf
+        regexp: "^install {{ item }}"
+        line: "install {{ item }} /bin/true"
+      loop:
+        - cramfs
+        - freevxfs
+        - jffs2
+        - hfs
+        - hfsplus
+        - squashfs
+        - udf
+        - vfat
+    - name: remove modules
+      modprobe:
+        name: "{{ item }}"
+        state: absent
+      loop:
+        - cramfs
+        - freevxfs
+        - jffs2
+        - hfs
+        - hfsplus
+        - squashfs
+        - udf
+        - vfat
+
+        #- chown root:root /boot/grub2/user.cfg
+        #- chmod og-rwx /boot/grub2/user.cfg
+
+    - name: t3.1.x
+      lineinfile:
+        path: /etc/sysctl.conf
+        regexp: "^{{ item }}"
+        line: "{{ item }} = 0"
+      loop:
+        - "net.ipv4.ip_forward"
+        - "net.ipv4.conf.all.send_redirects"
+        - "net.ipv4.conf.default.send_redirects"
+        - "net.ipv4.conf.all.accept_source_route"
+        - "net.ipv4.conf.default.accept_source_route"
+        - "net.ipv4.conf.all.accept_redirects"
+        - "net.ipv4.conf.default.accept_redirects"
+        - "net.ipv4.conf.all.secure_redirects"
+        - "net.ipv4.conf.default.secure_redirects"
+        - "net.ipv6.conf.all.accept_ra"
+        - "net.ipv6.conf.default.accept_ra"
+
+    - name: t1.5.1
+      lineinfile:
+        path: /etc/security/limits.conf
+        line: "{{ item }}"
+      loop:
+        - "* hard core 0"
+        - "fs.suid_dumpable = 0"
+
+    - name: t1.5.3
+      lineinfile:
+        path: /etc/sysctl.conf
+        line: "{{ item }}"
+      loop:
+        - "kernel.randomize_va_space = 2"
+
+    - name: t3.1.x part2
+      lineinfile:
+        path: /etc/sysctl.conf
+        regexp: "^{{ item }}"
+        line: "{{ item }} = 1"
+      loop:
+        - "net.ipv4.conf.all.log_martians"
+        - "net.ipv4.conf.default.log_martians"
+        - "net.ipv4.icmp_echo_ignore_broadcasts"
+        - "net.ipv4.icmp_ignore_bogus_error_responses"
+        - "net.ipv4.conf.all.rp_filter"
+        - "net.ipv4.conf.default.rp_filter"
+        - "net.ipv4.tcp_syncookies"
+    # - name: t3.4.3
+    #   lineinfile:
+    #     path: /etc/hosts.deny
+    #     regexp: "^ALL:"
+    #     line: "ALL: ALL"
+    # - name: t3.6.2
+    #   command: "{{ item }}"
+    #   loop:
+    #     - iptables -P INPUT DROP
+    #     - iptables -P OUTPUT DROP
+    #     - iptables -P FORWARD DROP
+
+    - name: t4.1.1
+      lineinfile:
+        path: /etc/audit/auditd.conf
+        regexp: "^{{ item }}"
+        line: "{{ item }}"
+      loop:
+        - "space_left_action = email"
+        - "action_mail_acct = root"
+        - "admin_space_left_action = halt"
+        - "max_log_file_action = keep_logs"
+
+    - name: t4.1.3
+      lineinfile:
+        path: /etc/default/grub
+        regexp: "^GRUB_CMDLINE_LINUX="
+        line: 'GRUB_CMDLINE_LINUX="audit=1"'
+
+    - name: t4.2.1.4
+      lineinfile:
+        path: /etc/rsyslog.conf
+        line: "*.* @@loghost.example.com"
+
+    - name: t4.2.1.3
+      lineinfile:
+        path: /etc/rsyslog.conf
+        line: "$FileCreateMode 0640"
+
+    - name: t1.4.1, 5.1.2
+      command: "{{ item }}"
+      loop:
+        - chown root:root /boot/grub2/grub.cfg
+        - chmod og-rwx /boot/grub2/grub.cfg
+        - chown root:root /etc/crontab
+        - chmod og-rwx /etc/crontab
+        - chown root:root /etc/cron.hourly
+        - chmod og-rwx /etc/cron.hourly
+        - chown root:root /etc/cron.daily
+        - chmod og-rwx /etc/cron.daily
+        - chown root:root /etc/cron.weekly
+        - chmod og-rwx /etc/cron.weekly
+        - chown root:root /etc/cron.monthly
+        - chmod og-rwx /etc/cron.monthly
+        - chown root:root /etc/cron.d
+        - chmod og-rwx /etc/cron.d
+        - grub2-mkconfig -o /boot/grub2/grub.cfg
+        - touch /etc/audit/audit.rules
+
+    - name: t4.1.4
+      blockinfile:
+        path: /etc/audit/audit.rules
+        block: |
+          -a always,exit -F arch=b64 -S adjtimex -S settimeofday -k time-change
+          -a always,exit -F arch=b32 -S adjtimex -S settimeofday -S stime -k time-change
+          -a always,exit -F arch=b64 -S clock_settime -k time-change
+          -a always,exit -F arch=b32 -S clock_settime -k time-change
+          -w /etc/localtime -p wa -k time-change
+          -w /etc/group -p wa -k identity
+          -w /etc/passwd -p wa -k identity
+          -w /etc/gshadow -p wa -k identity
+          -w /etc/shadow -p wa -k identity
+          -w /etc/security/opasswd -p wa -k identity
+          -a always,exit -F arch=b64 -S sethostname -S setdomainname -k system-locale -a always,exit -F arch=b32 -S sethostname -S setdomainname -k system-locale
+          -w /etc/issue -p wa -k system-locale
+          -w /etc/issue.net -p wa -k system-locale
+          -w /etc/hosts -p wa -k system-locale
+          -w /etc/sysconfig/network -p wa -k system-locale
+          -w /etc/sysconfig/network-scripts/ -p wa -k system-locale
+          -w /etc/selinux/ -p wa -k MAC-policy
+          -w /usr/share/selinux/ -p wa -k MAC-policy
+          -w /var/log/lastlog -p wa -k logins
+          -w /var/run/faillock/ -p wa -k logins
+          -w /var/run/utmp -p wa -k session
+          -w /var/log/wtmp -p wa -k logins
+          -w /var/log/btmp -p wa -k logins
+
+    - name: t5.2.2
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        line: "{{ item }}"
+      loop:
+        - "Protocol 2"
+        - "LogLevel INFO"
+        - "X11Forwarding no"
+        - "MaxAuthTries 4"
+        - "IgnoreRhosts yes"
+        - "HostbasedAuthentication no"
+        - "PermitRootLogin no"
+        - "PermitEmptyPasswords no"
+        - "PermitUserEnvironment no"
+        - "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com"
+        - ClientAliveInterval 300
+        - ClientAliveCountMax 0
+        - LoginGraceTime 60
+        - Banner /etc/issue.net
+    # - name: t4.2.2.3
+    #   lineinfile:
+    #     path: /etc/syslog-ng/syslog-ng.conf
+    #     line: "options { chain_hostnames(off); flush_lines(0); perm(0640); stats_freq(3600); threaded(yes); };"
+    # - name: Start service
+    #   service:
+    #     name: syslog-ng
+    #     state: started

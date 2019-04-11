@@ -1,0 +1,15 @@
+---
+- hosts: aws
+  become: true
+
+  tasks:
+    - name: remove old report
+      shell: "rm -f /opt/cis/reports/*.html"
+    - name: scan
+      command: /opt/cis/cis-cat-full/misc/Unix-Linux/cis-cat-centralized.sh
+    - name: copy
+      shell: "mv /opt/cis/reports/ip*.html /opt/result.html"
+    - name: get report
+      fetch:
+        src: /opt/result.html
+        dest: ./result.html
